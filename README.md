@@ -2,4 +2,5 @@
 
 It's my first GitHub Repository
 
-## AboutI'm learning GitHub
+## About
+I'm learning GitHub
