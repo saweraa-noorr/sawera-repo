@@ -1,0 +1,149 @@
+
+<style>
+  #game-wrap { text-align: center; padding: 1rem 0; font-family: var(--font-sans); user-select: none; }
+  #score-bar { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; }
+  .stat { font-size: 14px; color: var(--color-text-secondary); }
+  .stat span { font-size: 20px; font-weight: 500; color: var(--color-text-primary); display: block; }
+  #arena { position: relative; width: 100%; height: 380px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); overflow: hidden; border: 0.5px solid var(--color-border-tertiary); cursor: crosshair; }
+  .balloon { position: absolute; width: 54px; height: 64px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; transition: transform 0.1s; animation: floatUp linear forwards; }
+  .balloon:hover { transform: scale(1.1); }
+  .balloon::after { content: ''; position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); width: 2px; height: 12px; background: #aaa; }
+  @keyframes floatUp { from { bottom: -80px; } to { bottom: 110%; } }
+  .pop { animation: popAnim 0.3s forwards; pointer-events: none; }
+  @keyframes popAnim { 0%{transform:scale(1);opacity:1} 50%{transform:scale(1.6);opacity:0.6} 100%{transform:scale(0);opacity:0} }
+  .star-text { position: absolute; font-size: 20px; font-weight: 500; pointer-events: none; animation: riseUp 0.8s ease-out forwards; color: var(--color-text-primary); }
+  @keyframes riseUp { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-50px)} }
+  #message { font-size: 22px; font-weight: 500; min-height: 2rem; color: var(--color-text-primary); margin: 0.5rem 0; }
+  #start-btn { margin-top: 1rem; padding: 10px 28px; font-size: 15px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; }
+  #start-btn:hover { background: var(--color-background-secondary); }
+  #timer-bar-wrap { width: 80%; margin: 0.5rem auto; height: 8px; background: var(--color-background-secondary); border-radius: 99px; border: 0.5px solid var(--color-border-tertiary); }
+  #timer-bar { height: 100%; background: #D85A30; border-radius: 99px; transition: width 0.2s linear; }
+</style>
+
+<div id="game-wrap">
+  <h2 class="sr-only">Birthday balloon pop game</h2>
+  <div id="score-bar">
+    <div class="stat">Score<span id="score">0</span></div>
+    <div class="stat">Level<span id="level">1</span></div>
+    <div class="stat">Missed<span id="missed">0</span></div>
+  </div>
+  <div id="timer-bar-wrap"><div id="timer-bar" style="width:100%"></div></div>
+  <div id="message">Pop the birthday balloons!</div>
+  <div id="arena"></div>
+  <button id="start-btn" onclick="startGame()">Start Game</button>
+</div>
+
+<script>
+const EMOJIS = ['🎈','🎂','🎁','⭐','🎉','🎊','🍰','🥳'];
+const COLORS = ['#F4C0D1','#9FE1CB','#B5D4F4','#FAC775','#AFA9EC','#F0997B','#C0DD97','#F5C4B3'];
+let score=0, missed=0, level=1, gameRunning=false, spawnTimer, balloonTimer, timerInterval;
+let timeLeft=30, balloonCount=0, poppedInLevel=0;
+const arena = document.getElementById('arena');
+
+function startGame(){
+  score=0; missed=0; level=1; timeLeft=30; balloonCount=0; poppedInLevel=0;
+  document.getElementById('score').textContent=0;
+  document.getElementById('missed').textContent=0;
+  document.getElementById('level').textContent=1;
+  document.getElementById('start-btn').style.display='none';
+  document.getElementById('message').textContent='Pop them fast!';
+  arena.innerHTML='';
+  gameRunning=true;
+  startTimerBar();
+  scheduleBalloon();
+}
+
+function startTimerBar(){
+  clearInterval(timerInterval);
+  const bar=document.getElementById('timer-bar');
+  bar.style.width='100%';
+  timerInterval=setInterval(()=>{
+    timeLeft-=0.2;
+    bar.style.width=Math.max(0,(timeLeft/30)*100)+'%';
+    if(timeLeft<=0){ clearInterval(timerInterval); endGame(); }
+  },200);
+}
+
+function getSpeed(){
+  return Math.max(1.5, 5 - (level-1)*0.5);
+}
+
+function getInterval(){
+  return Math.max(400, 1200 - (level-1)*100);
+}
+
+function scheduleBalloon(){
+  if(!gameRunning) return;
+  const delay = getInterval() + Math.random()*400;
+  balloonTimer=setTimeout(()=>{ spawnBalloon(); scheduleBalloon(); }, delay);
+}
+
+function spawnBalloon(){
+  if(!gameRunning) return;
+  const b=document.createElement('div');
+  b.className='balloon';
+  const idx=Math.floor(Math.random()*EMOJIS.length);
+  b.textContent=EMOJIS[idx];
+  b.style.background=COLORS[idx];
+  const maxLeft=arena.offsetWidth-60;
+  b.style.left=Math.floor(Math.random()*maxLeft)+'px';
+  const dur=getSpeed();
+  b.style.animationDuration=dur+'s';
+  balloonCount++;
+  const id='b'+balloonCount;
+  b.id=id;
+  b.onclick=(e)=>{ e.stopPropagation(); popBalloon(b,+10); };
+  arena.appendChild(b);
+  b.addEventListener('animationend',()=>{
+    if(b.parentNode){ b.parentNode.removeChild(b); missed++; document.getElementById('missed').textContent=missed; if(missed>=5&&gameRunning){ endGame(); } }
+  });
+}
+
+function popBalloon(b, pts){
+  if(b.classList.contains('pop')) return;
+  b.classList.add('pop');
+  score+=pts; poppedInLevel++;
+  document.getElementById('score').textContent=score;
+  showStar(b, '+'+pts);
+  setTimeout(()=>{ if(b.parentNode) b.parentNode.removeChild(b); },300);
+  if(poppedInLevel>=10){
+    level++;
+    poppedInLevel=0;
+    document.getElementById('level').textContent=level;
+    showMessage('Level '+level+'!');
+    timeLeft=Math.min(30,timeLeft+5);
+  }
+}
+
+function showStar(el, txt){
+  const s=document.createElement('div');
+  s.className='star-text';
+  const r=el.getBoundingClientRect();
+  const ar=arena.getBoundingClientRect();
+  s.style.left=(r.left-ar.left+10)+'px';
+  s.style.top=(r.top-ar.top)+'px';
+  s.textContent=txt;
+  arena.appendChild(s);
+  setTimeout(()=>{ if(s.parentNode) s.parentNode.removeChild(s); },800);
+}
+
+function showMessage(txt){
+  const m=document.getElementById('message');
+  m.textContent=txt;
+  setTimeout(()=>{ if(gameRunning) m.textContent='Keep popping!'; },1200);
+}
+
+function endGame(){
+  gameRunning=false;
+  clearTimeout(balloonTimer);
+  clearInterval(timerInterval);
+  arena.innerHTML='';
+  let msg='';
+  if(score>=100) msg='Amazing! You are a balloon master!';
+  else if(score>=50) msg='Great job! Keep practicing!';
+  else msg='Nice try! Play again to beat your score!';
+  document.getElementById('message').textContent='Game over! Score: '+score+' — '+msg;
+  document.getElementById('start-btn').textContent='Play Again';
+  document.getElementById('start-btn').style.display='inline-block';
+}
+</script>
